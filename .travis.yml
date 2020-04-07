@@ -64,10 +64,20 @@ jobs:
         script: bash .docker-hub/push.sh
         on:
           all_branches: true
-          condition: $TRAVIS_BRANCH =~ ^(devel)$
+          condition: $TRAVIS_BRANCH =~ ^(devel|deploy-dev.ecamp3.ch)$
+
+    - name: "Deploy"
+      stage: deploy
+      script: skip
+      deploy:
+        provider: script
+        script: bash .deployment/deploy.sh
+        on:
+          all_branches: true
 
 stages:
   - name: test
   - name: "push-images"
-    if: branch = devel AND type = push
-
+    if: type = push
+  - name: deploy
+    if: branch = deploy-dev.ecamp3.ch
