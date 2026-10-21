@@ -12,6 +12,20 @@ http:
       priority: 90
       middlewares: [mock-prefix]
       service: mock-oauth
+    web-keycloak:
+      entryPoints: [web]
+      rule: 'PathPrefix(`/keycloak/`)'
+      priority: 90
+      service: keycloak
+    web-keycloak-demo:
+      entryPoints: [web]
+      # No trailing slash on the prefix (unlike /keycloak/, /mock-auth/): people type or
+      # paste this URL directly, and /demo (no trailing slash) must still match instead of
+      # silently falling through to the catch-all frontend route below.
+      rule: 'PathPrefix(`/demo`)'
+      priority: 90
+      middlewares: [keycloak-demo-prefix]
+      service: keycloak-demo-app
     web-api:
       entryPoints: [web]
       rule: 'PathPrefix(`/api/`)'
@@ -107,6 +121,9 @@ http:
     mock-prefix:
       stripPrefix:
         prefixes: [/mock-auth]
+    keycloak-demo-prefix:
+      stripPrefix:
+        prefixes: [/demo]
     mock-authorize-rewrite:
       replacePathRegex:
         regex: '^/mock-auth/([^/]+)/oauth/authorize(.*)$'
@@ -149,6 +166,14 @@ http:
       loadBalancer:
         servers:
           - url: http://mock-oauth2:8080
+    keycloak:
+      loadBalancer:
+        servers:
+          - url: http://keycloak:8080
+    keycloak-demo-app:
+      loadBalancer:
+        servers:
+          - url: http://keycloak-demo-app:80
     pgadmin:
       loadBalancer:
         servers:

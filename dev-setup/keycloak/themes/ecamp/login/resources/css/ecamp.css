@@ -1,0 +1,115 @@
+/* Cheap CSS-only reskin of the stock keycloak.v2 login theme to match eCamp's own
+ * branding (see frontend/src/plugins/vuetify.js for the source of these tokens: primary
+ * #1867C0 / primary-darken-1 #1F5592, Inter font family). No FreeMarker templates
+ * touched -- this only overrides colors/fonts/logo on top of the existing markup. */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+:root {
+  --ecamp-primary: #1867c0;
+  --ecamp-primary-dark: #1f5592;
+  --ecamp-secondary: #424242;
+}
+
+body,
+.pf-v5-c-login,
+.pf-v5-c-form,
+.pf-v5-c-button {
+  font-family:
+    'Inter',
+    sans-serif,
+    emoji !important;
+}
+
+#keycloak-bg {
+  background: linear-gradient(160deg, #eef4fb 0%, #ffffff 55%);
+}
+
+.pf-v5-c-login__main {
+  background-color: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+}
+
+/* Swap the plain-text realm brand ("ecamp") for the real eCamp logo + wordmark,
+ * without touching template.ftl -- pure CSS content injection. */
+#kc-header-wrapper {
+  /* base keycloak.v2 theme sets color with !important (assumes a dark header band);
+   * our header sits on a light background, so this needs !important too to win. */
+  color: var(--ecamp-secondary) !important;
+  text-transform: none;
+  letter-spacing: normal;
+  font-weight: 600;
+  font-size: 1.25rem;
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+#kc-header-wrapper::before {
+  content: '';
+  display: inline-block;
+  width: 32px;
+  height: 32px;
+  background: url('../img/ecamp-logo.svg') no-repeat center / contain;
+}
+
+.pf-v5-c-title {
+  font-family: 'Inter', sans-serif, emoji;
+  color: var(--ecamp-secondary);
+}
+
+/* Inputs: match eCamp's rounded, blue-focus-ring text fields */
+.pf-v5-c-form-control {
+  border-radius: 4px;
+  border-color: #c7c7c7;
+}
+.pf-v5-c-form-control:focus-within {
+  border-color: var(--ecamp-primary);
+  box-shadow: 0 0 0 1px var(--ecamp-primary);
+}
+
+/* Primary action button: eCamp's real login button is Vuetify's "outlined" style,
+ * not a solid fill -- mimic that instead of Keycloak's default solid blue. */
+.pf-v5-c-button.pf-m-primary {
+  background-color: transparent;
+  color: var(--ecamp-primary);
+  border: 2px solid var(--ecamp-primary);
+  border-radius: 4px;
+  font-weight: 500;
+}
+.pf-v5-c-button.pf-m-primary:hover,
+.pf-v5-c-button.pf-m-primary:focus {
+  background-color: rgba(24, 103, 192, 0.08);
+  color: var(--ecamp-primary-dark);
+  border-color: var(--ecamp-primary-dark);
+}
+
+/* The "Or sign in with" identity-provider list is intentionally hidden: eCamp's own
+ * landing page links to these providers directly via ?kc_idp_hint=<alias>, bypassing
+ * this page entirely, so there's no need to also offer them here. The providers
+ * themselves stay enabled -- this only hides the login page's own rendering of them,
+ * it doesn't disable the hint-based deep links (those never render this page at all). */
+.pf-v5-c-login__main-footer-band,
+#kc-social-providers {
+  display: none;
+}
+
+/* Language dropdown: hidden since eCamp's own frontend already knows the user's chosen
+ * language and can pass it via the OIDC-standard `ui_locales` request parameter (e.g.
+ * ?ui_locales=de) on the authorize URL -- confirmed this actually sets the rendered
+ * locale on the initial page load. Note `kc_locale` (Keycloak's own, non-standard
+ * parameter, used internally by this very dropdown) does NOT work on the initial
+ * authorize request, only on the follow-up form actions -- `ui_locales` is the one
+ * that works from a cold start. */
+.pf-v5-c-login__main-header-utilities {
+  display: none;
+}
+
+a {
+  color: var(--ecamp-primary);
+}
+a:hover {
+  color: var(--ecamp-primary-dark);
+}

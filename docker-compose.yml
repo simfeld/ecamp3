@@ -215,6 +215,34 @@ services:
       JSON_CONFIG_PATH: /app/config.json
       SERVER_PORT: 8080
 
+  # Local-dev-only proof of concept: a Keycloak instance issuing OAuth2 tokens for
+  # third-party access to the eCamp API, kept fully separate from the eCamp login flow
+  # above (password/Google/Hitobito), which keeps using Lexik JWT as before.
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    container_name: 'ecamp3-keycloak'
+    command: start-dev --import-realm
+    volumes:
+      - ./dev-setup/keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
+      - ./dev-setup/keycloak/themes/ecamp:/opt/keycloak/themes/ecamp:ro
+      - ./dev-setup/keycloak/spi/ecamp-user-storage/target/ecamp-user-storage-spi.jar:/opt/keycloak/providers/ecamp-user-storage-spi.jar:ro
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KC_HTTP_ENABLED: 'true'
+      KC_HTTP_RELATIVE_PATH: /keycloak
+      KC_HOSTNAME: http://localhost:3000/keycloak
+      KC_PROXY_HEADERS: xforwarded
+
+  # Minimal static file server for the vanilla-JS third-party demo app (see
+  # dev-setup/keycloak/demo-app/), so the Keycloak POC's authorization-code + PKCE flow
+  # can be demonstrated by clicking through a real page instead of manual curl/URLs.
+  keycloak-demo-app:
+    image: nginx:1.31
+    container_name: 'ecamp3-keycloak-demo-app'
+    volumes:
+      - ./dev-setup/keycloak/demo-app:/usr/share/nginx/html:ro
+
   reverse-proxy:
     image: traefik:v3.7.14
     container_name: 'ecamp3-reverse-proxy'
@@ -225,6 +253,8 @@ services:
       - api
       - frontend-old
       - mock-oauth2
+      - keycloak
+      - keycloak-demo-app
       - http-cache
       - print
       - mail
@@ -266,6 +296,21 @@ services:
       - NPM_CONFIG_UPDATE_NOTIFIER=false
       - NPM_CONFIG_CACHE=/home/node/.npm
       - CI=${CI:-}
+
+  # Local-dev-only proof of concept: builds the Keycloak User Storage SPI provider (see
+  # dev-setup/keycloak/spi/ecamp-user-storage/) that validates eCamp password logins
+  # live against eCamp's own API instead of storing a password hash in Keycloak. Never
+  # started with the rest of the stack -- run explicitly with
+  # `docker compose run --rm keycloak-spi-builder`.
+  keycloak-spi-builder:
+    image: maven:3.9-eclipse-temurin-21
+    profiles: ['keycloak-spi-builder']
+    container_name: 'ecamp3-keycloak-spi-builder'
+    volumes:
+      - ./dev-setup/keycloak/spi/ecamp-user-storage:/app
+      - ./.cache/maven:/root/.m2
+    working_dir: /app
+    command: mvn --batch-mode package
 
 volumes:
   db-data-postgres: null

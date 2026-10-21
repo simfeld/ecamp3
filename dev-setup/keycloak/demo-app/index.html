@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>eCamp Third-Party Demo App</title>
+    <style>
+      body {
+        font-family: sans-serif;
+        max-width: 640px;
+        margin: 60px auto;
+        padding: 0 16px;
+        color: #222;
+      }
+      h1 {
+        margin-bottom: 4px;
+      }
+      p.subtitle {
+        color: #666;
+        margin-top: 0;
+      }
+      button {
+        padding: 10px 20px;
+        font-size: 1em;
+        cursor: pointer;
+        border-radius: 4px;
+        border: 1px solid #888;
+        background: #f5f5f5;
+      }
+      button:hover {
+        background: #e8e8e8;
+      }
+      .row {
+        display: flex;
+        gap: 8px;
+        margin: 12px 0;
+      }
+      .row input {
+        flex: 1;
+        padding: 8px;
+        font-size: 1em;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+      }
+      pre {
+        background: #f5f5f5;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        padding: 12px;
+        overflow-x: auto;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+      .ok {
+        color: #1a7f37;
+      }
+      .err {
+        color: #cf222e;
+      }
+      section {
+        margin-top: 32px;
+        padding-top: 16px;
+        border-top: 1px solid #ddd;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>eCamp Third-Party Demo App</h1>
+    <p class="subtitle">
+      A minimal, dependency-free demonstration of a third party obtaining a token via
+      Keycloak and calling the eCamp API with it. Not part of eCamp itself &mdash;
+      local-dev-only proof of concept.
+    </p>
+
+    <div id="signed-out">
+      <label for="env-select">Environment:</label>
+      <select id="env-select">
+        <option value="local">Local (docker-compose)</option>
+        <option value="simfeld">simfeld (k8s dev cluster)</option>
+      </select>
+
+      <div style="margin-top: 8px">
+        <label for="locale-select">Keycloak sign-in page language:</label>
+        <select id="locale-select">
+          <option value="en">English</option>
+          <option value="de">Deutsch</option>
+          <option value="fr">Français</option>
+          <option value="it">Italiano</option>
+          <option value="rm">Rumantsch</option>
+        </select>
+      </div>
+      <div class="row" style="margin-top: 8px">
+        <button id="sign-in">Sign in with eCamp Connect (via Keycloak)</button>
+        <button id="sign-in-pbsmidata-real">Sign in with real MiData (pbs.puzzle.ch)</button>
+      </div>
+    </div>
+
+    <div id="signed-in" hidden>
+      <p class="ok">Signed in against <strong id="signed-in-env"></strong>. Access token obtained from Keycloak:</p>
+      <pre id="claims"></pre>
+
+      <section>
+        <h2>Call the eCamp API</h2>
+        <p>Fetch a user resource using the access token above (requires only being logged in, not a specific user):</p>
+        <div class="row">
+          <input id="user-id" placeholder="eCamp user id, e.g. dac7116e02ed" />
+          <button id="call-user-api">GET /api/users/&#123;id&#125;</button>
+        </div>
+        <p>
+          Fetch a camp (requires being a collaborator on that specific camp, not just being
+          logged in &mdash; e.g. Bi-Pi collaborates on <code>6973c230d6b1</code>, Harry Potter
+          Lager):
+        </p>
+        <div class="row">
+          <input id="camp-id" placeholder="eCamp camp id, e.g. 6973c230d6b1" />
+          <button id="call-camp-api">GET /api/camps/&#123;id&#125;</button>
+        </div>
+        <pre id="api-result"></pre>
+      </section>
+
+      <section>
+        <button id="sign-out">Start over</button>
+      </section>
+    </div>
+
+    <script>
+      // The demo app's own address (this page) never changes, only which Keycloak/API
+      // deployment it talks to -- REDIRECT_URI must be registered on the
+      // third-party-demo-app client in BOTH environments' realm config.
+      const REDIRECT_URI = window.location.origin + window.location.pathname;
+      const CLIENT_ID = 'third-party-demo-app';
+
+      const ENVIRONMENTS = {
+        local: {
+          label: 'Local (docker-compose)',
+          keycloakBase: 'http://localhost:3000/keycloak/realms/ecamp',
+          apiBase: 'http://localhost:3000/api',
+          pbsmidataIdpAlias: 'pbsmidata-real',
+        },
+        simfeld: {
+          label: 'simfeld (k8s dev cluster)',
+          keycloakBase: 'https://simfeld.ecamp3.ch/keycloak/realms/ecamp',
+          apiBase: 'https://simfeld.ecamp3.ch/api',
+          pbsmidataIdpAlias: 'pbsmidata',
+        },
+      };
+
+      // Persisted (not just an in-memory variable) because sign-in navigates away to
+      // Keycloak and back -- the token exchange after that redirect must still know which
+      // environment's endpoints to use.
+      function getEnvKey() {
+        return localStorage.getItem('demo_env') in ENVIRONMENTS ? localStorage.getItem('demo_env') : 'local';
+      }
+      function setEnvKey(key) {
+        localStorage.setItem('demo_env', key);
+      }
+      function getEnv() {
+        return ENVIRONMENTS[getEnvKey()];
+      }
+
+      const base64url = (buffer) =>
+        btoa(String.fromCharCode(...new Uint8Array(buffer)))
+          .replace(/\+/g, '-')
+          .replace(/\//g, '_')
+          .replace(/=+$/, '');
+
+      const randomString = (length) => {
+        const bytes = new Uint8Array(length);
+        crypto.getRandomValues(bytes);
+        return base64url(bytes).slice(0, length);
+      };
+
+      const sha256 = async (text) => crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+
+      const decodeJwt = (jwt) => {
+        const payload = jwt.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+        return JSON.parse(atob(payload));
+      };
+
+      async function startSignIn(idpHint, uiLocales) {
+        const verifier = randomString(64);
+        sessionStorage.setItem('pkce_verifier', verifier);
+
+        const challenge = base64url(await sha256(verifier));
+
+        const params = new URLSearchParams({
+          client_id: CLIENT_ID,
+          response_type: 'code',
+          scope: 'openid ecamp-api',
+          redirect_uri: REDIRECT_URI,
+          code_challenge: challenge,
+          code_challenge_method: 'S256',
+        });
+        if (idpHint) {
+          // Skips Keycloak's own login page and jumps straight to the given identity
+          // provider (a Keycloak-specific extension, not part of the OAuth2/OIDC spec).
+          params.set('kc_idp_hint', idpHint);
+        }
+        if (uiLocales) {
+          // OIDC-standard parameter. Note: Keycloak's own `kc_locale` (used internally by
+          // its language dropdown) is NOT honored on this initial request, only on
+          // follow-up form actions -- `ui_locales` is the one that works from a cold start.
+          params.set('ui_locales', uiLocales);
+        }
+
+        window.location.assign(`${getEnv().keycloakBase}/protocol/openid-connect/auth?${params}`);
+      }
+
+      async function exchangeCodeForToken(code) {
+        const verifier = sessionStorage.getItem('pkce_verifier');
+
+        const response = await fetch(`${getEnv().keycloakBase}/protocol/openid-connect/token`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({
+            grant_type: 'authorization_code',
+            client_id: CLIENT_ID,
+            code,
+            redirect_uri: REDIRECT_URI,
+            code_verifier: verifier,
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error(`Token exchange failed: ${response.status} ${await response.text()}`);
+        }
+
+        const token = await response.json();
+        sessionStorage.setItem('access_token', token.access_token);
+        sessionStorage.removeItem('pkce_verifier');
+      }
+
+      function showSignedIn() {
+        document.getElementById('signed-out').hidden = true;
+        document.getElementById('signed-in').hidden = false;
+        document.getElementById('signed-in-env').textContent = getEnv().label;
+        const claims = decodeJwt(sessionStorage.getItem('access_token'));
+        document.getElementById('claims').textContent = JSON.stringify(claims, null, 2);
+      }
+
+      async function callApi(resourceType, id) {
+        const result = document.getElementById('api-result');
+        result.className = '';
+        result.textContent = 'Loading...';
+
+        try {
+          const response = await fetch(`${getEnv().apiBase}/${resourceType}/${encodeURIComponent(id)}`, {
+            headers: {
+              Authorization: `Bearer ${sessionStorage.getItem('access_token')}`,
+              Accept: 'application/json',
+            },
+          });
+          const body = await response.json();
+          result.className = response.ok ? 'ok' : 'err';
+          result.textContent = `HTTP ${response.status}\n${JSON.stringify(body, null, 2)}`;
+        } catch (error) {
+          result.className = 'err';
+          result.textContent = String(error);
+        }
+      }
+
+      function signOut() {
+        sessionStorage.removeItem('access_token');
+        sessionStorage.removeItem('pkce_verifier');
+        window.location.assign(REDIRECT_URI);
+      }
+
+      document.getElementById('sign-in').addEventListener('click', () =>
+        startSignIn(undefined, document.getElementById('locale-select').value)
+      );
+      document.getElementById('sign-in-pbsmidata-real').addEventListener('click', () =>
+        startSignIn(getEnv().pbsmidataIdpAlias)
+      );
+      document.getElementById('env-select').addEventListener('change', (event) =>
+        setEnvKey(event.target.value)
+      );
+      document.getElementById('call-user-api').addEventListener('click', () =>
+        callApi('users', document.getElementById('user-id').value.trim())
+      );
+      document.getElementById('call-camp-api').addEventListener('click', () =>
+        callApi('camps', document.getElementById('camp-id').value.trim())
+      );
+      document.getElementById('sign-out').addEventListener('click', signOut);
+
+      (async function init() {
+        document.getElementById('env-select').value = getEnvKey();
+
+        const params = new URLSearchParams(window.location.search);
+        const code = params.get('code');
+
+        if (code) {
+          // Always exchange a fresh code, even if a token from a previous sign-in is
+          // still around — otherwise switching users without clicking "Start over" first
+          // would silently keep using the old token instead of the new one.
+          history.replaceState({}, '', REDIRECT_URI);
+          try {
+            await exchangeCodeForToken(code);
+          } catch (error) {
+            alert(error);
+          }
+        }
+
+        if (sessionStorage.getItem('access_token')) {
+          showSignedIn();
+        }
+      })();
+    </script>
+  </body>
+</html>

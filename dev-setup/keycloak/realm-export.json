@@ -1,0 +1,165 @@
+{
+  "realm": "ecamp",
+  "displayName": "eCamp",
+  "displayNameHtml": "eCamp",
+  "enabled": true,
+  "sslRequired": "none",
+  "accessTokenLifespan": 300,
+  "loginTheme": "ecamp",
+  "internationalizationEnabled": true,
+  "supportedLocales": ["en", "de", "fr", "it", "rm"],
+  "defaultLocale": "en",
+  "users": [
+    {
+      "username": "test@example.com",
+      "email": "test@example.com",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Bi-Pi",
+      "lastName": "Baden-Powell",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "test",
+          "temporary": false
+        }
+      ]
+    }
+  ],
+  "clientScopes": [
+    {
+      "name": "ecamp-api",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "true"
+      },
+      "protocolMappers": [
+        {
+          "name": "ecamp-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.custom.audience": "ecamp-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        },
+        {
+          "name": "ecamp-api-email",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-property-mapper",
+          "config": {
+            "user.attribute": "email",
+            "claim.name": "email",
+            "jsonType.label": "String",
+            "access.token.claim": "true",
+            "id.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ],
+  "identityProviders": [
+    {
+      "alias": "pbsmidata",
+      "displayName": "PBS MiData (Hitobito)",
+      "providerId": "oidc",
+      "enabled": true,
+      "trustEmail": true,
+      "storeToken": false,
+      "firstBrokerLoginFlowAlias": "first broker login",
+      "config": {
+        "clientId": "keycloak-mock-client",
+        "clientSecret": "keycloak-mock-secret",
+        "clientAuthMethod": "client_secret_post",
+        "syncMode": "IMPORT",
+        "defaultScope": "openid name",
+        "useJwksUrl": "true",
+        "validateSignature": "true",
+        "authorizationUrl": "http://localhost:3000/mock-auth/pbsmidata/authorize",
+        "tokenUrl": "http://mock-oauth2:8080/pbsmidata/token",
+        "userInfoUrl": "http://mock-oauth2:8080/pbsmidata/userinfo",
+        "jwksUrl": "http://mock-oauth2:8080/pbsmidata/jwks",
+        "issuer": "http://mock-oauth2:8080/pbsmidata"
+      }
+    },
+    {
+      "alias": "cevidb",
+      "displayName": "CeviDB (Hitobito)",
+      "providerId": "oidc",
+      "enabled": true,
+      "trustEmail": true,
+      "storeToken": false,
+      "firstBrokerLoginFlowAlias": "first broker login",
+      "config": {
+        "clientId": "keycloak-mock-client",
+        "clientSecret": "keycloak-mock-secret",
+        "clientAuthMethod": "client_secret_post",
+        "syncMode": "IMPORT",
+        "defaultScope": "openid name",
+        "useJwksUrl": "true",
+        "validateSignature": "true",
+        "authorizationUrl": "http://localhost:3000/mock-auth/cevidb/authorize",
+        "tokenUrl": "http://mock-oauth2:8080/cevidb/token",
+        "userInfoUrl": "http://mock-oauth2:8080/cevidb/userinfo",
+        "jwksUrl": "http://mock-oauth2:8080/cevidb/jwks",
+        "issuer": "http://mock-oauth2:8080/cevidb"
+      }
+    },
+    {
+      "alias": "jubladb",
+      "displayName": "JublaDB (Hitobito)",
+      "providerId": "oidc",
+      "enabled": true,
+      "trustEmail": true,
+      "storeToken": false,
+      "firstBrokerLoginFlowAlias": "first broker login",
+      "config": {
+        "clientId": "keycloak-mock-client",
+        "clientSecret": "keycloak-mock-secret",
+        "clientAuthMethod": "client_secret_post",
+        "syncMode": "IMPORT",
+        "defaultScope": "openid name",
+        "useJwksUrl": "true",
+        "validateSignature": "true",
+        "authorizationUrl": "http://localhost:3000/mock-auth/jubladb/authorize",
+        "tokenUrl": "http://mock-oauth2:8080/jubladb/token",
+        "userInfoUrl": "http://mock-oauth2:8080/jubladb/userinfo",
+        "jwksUrl": "http://mock-oauth2:8080/jubladb/jwks",
+        "issuer": "http://mock-oauth2:8080/jubladb"
+      }
+    }
+  ],
+  "clients": [
+    {
+      "clientId": "third-party-demo-app",
+      "enabled": true,
+      "publicClient": true,
+      "protocol": "openid-connect",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": ["http://localhost:3000/demo/*"],
+      "webOrigins": ["http://localhost:3000"],
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
+      },
+      "defaultClientScopes": ["ecamp-api"]
+    }
+  ],
+  "components": {
+    "org.keycloak.storage.UserStorageProvider": [
+      {
+        "name": "ecamp-user-storage",
+        "providerId": "ecamp-user-storage",
+        "config": {
+          "ecampApiBaseUrl": ["http://api:3001"],
+          "internalApiSecret": ["local-dev-only-insecure-secret"],
+          "priority": ["0"]
+        }
+      }
+    ]
+  }
+}
