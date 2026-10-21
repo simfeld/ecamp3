@@ -1,0 +1,49 @@
+name: Deploy Keycloak Operator
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Choose environment'
+        type: environment
+        default: dev
+      action:
+        description: 'Choose action'
+        type: choice
+        required: true
+        default: diff
+        options:
+          - diff
+          - deploy
+  push:
+    branches:
+      - devel
+    paths:
+      - .github/workflows/deploy-keycloak-operator.yml
+      - .ops/keycloak-operator/**
+
+env:
+  action: ${{ github.event.inputs.action || 'deploy' }}
+
+jobs:
+  deploy-keycloak-operator:
+    name: 'Deploy Keycloak Operator'
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Setup kubectl
+        run: |
+          mkdir ~/.kube && echo '${{ secrets.KUBECONFIG }}' > ~/.kube/config && chmod go-r ~/.kube/config
+
+      - name: Diff deployment
+        run: |
+          ./deploy.sh diff || true
+        working-directory: .ops/keycloak-operator
+
+      - name: Deploy
+        if: env.action == 'deploy'
+        run: |
+          ./deploy.sh deploy
+        working-directory: .ops/keycloak-operator

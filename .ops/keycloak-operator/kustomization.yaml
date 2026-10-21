@@ -1,0 +1,30 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Installs the Keycloak Operator's cluster-wide variant: the Operator itself runs in the
+# `keycloak-operator` namespace (below), but watches Keycloak/KeycloakRealmImport CRs in
+# EVERY namespace -- not just its own. This matters here specifically: the app chart
+# (.helm/ecamp3) deploys every PR preview's `Keycloak`/`KeycloakRealmImport` CRs into the
+# same shared app namespace, not a dedicated one, and the Operator's *default* install
+# only watches its own installation namespace. The cluster-wide variant is the officially
+# supported way to cover that (per https://github.com/keycloak/keycloak/discussions/13449 --
+# watching multiple/all namespaces via a bare WATCH_NAMESPACE override is explicitly *not*
+# fully supported; this dedicated kustomize path is).
+#
+# Mirrors .ops/api-gateway-traefik/'s role/shape for the Traefik Gateway API installation
+# (own dedicated namespace, referenced cross-namespace by the app chart) -- Keycloak just
+# doesn't ship an official Helm chart for the Operator itself, only this Kustomize base,
+# so deploy.sh uses `kubectl apply -k` instead of `helm upgrade`.
+#
+# NOTE on the version pin: initially tried to match dev-setup/keycloak/Dockerfile's
+# Keycloak image (26.0.8) exactly, but confirmed via `kubectl kustomize` (no cluster
+# needed for this, just resolves the remote git ref) that the `cluster-wide` variant
+# doesn't exist yet at that tag -- it 404s. 26.7.3 is the version Keycloak's own
+# installation docs currently reference and is confirmed to resolve. The Operator is
+# designed to manage a range of Keycloak server versions, so this mismatch (operator
+# 26.7.3, managed Keycloak image 26.0.8) is expected to be fine, but that specific
+# compatibility claim is not verified here -- only that this manifest resolves.
+namespace: keycloak-operator
+
+resources:
+    - github.com/keycloak/keycloak-k8s-resources/kubernetes/cluster-wide?ref=26.7.3
