@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>ch.ecamp</groupId>
+  <artifactId>ecamp-user-storage-spi</artifactId>
+  <version>1.0.0</version>
+  <packaging>jar</packaging>
+
+  <!--
+    Local-dev-only proof of concept: a Keycloak User Storage SPI provider that validates
+    eCamp password logins live against eCamp's own POST /authentication_token endpoint,
+    instead of storing/verifying a password hash in Keycloak itself. See
+    dev-setup/keycloak/README.md for the build/deploy steps and design rationale.
+  -->
+
+  <properties>
+    <maven.compiler.source>21</maven.compiler.source>
+    <maven.compiler.target>21</maven.compiler.target>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <!-- Pinned to match the exact Keycloak version running in docker-compose.yml. -->
+    <keycloak.version>26.0.8</keycloak.version>
+  </properties>
+
+  <dependencies>
+    <!-- provided: supplied by the Keycloak server at runtime, not bundled into our jar. -->
+    <dependency>
+      <groupId>org.keycloak</groupId>
+      <artifactId>keycloak-server-spi</artifactId>
+      <version>${keycloak.version}</version>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.keycloak</groupId>
+      <artifactId>keycloak-server-spi-private</artifactId>
+      <version>${keycloak.version}</version>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.keycloak</groupId>
+      <artifactId>keycloak-core</artifactId>
+      <version>${keycloak.version}</version>
+      <scope>provided</scope>
+    </dependency>
+    <!-- UserStorageProvider(Factory), AbstractUserAdapterFederatedStorage: found by
+         inspecting the actual jars shipped in the running Keycloak 26.0.8 container.
+         They live here, not in keycloak-server-spi as some docs for other versions
+         suggest. -->
+    <dependency>
+      <groupId>org.keycloak</groupId>
+      <artifactId>keycloak-model-storage</artifactId>
+      <version>${keycloak.version}</version>
+      <scope>provided</scope>
+    </dependency>
+    <!-- Already on Keycloak's own runtime classpath (its REST layer is built on it),
+         provided here only so this module compiles against it. Version pinned to match
+         what's actually bundled in quay.io/keycloak/keycloak:26.0 (verified by inspecting
+         /opt/keycloak/lib/lib/main inside the real image), not just Keycloak's own
+         version number. -->
+    <dependency>
+      <groupId>com.fasterxml.jackson.core</groupId>
+      <artifactId>jackson-databind</artifactId>
+      <version>2.17.2</version>
+      <scope>provided</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <!-- Fixed name so docker-compose.yml can bind-mount this exact file into Keycloak's
+         providers directory without depending on the Maven version string. -->
+    <finalName>ecamp-user-storage-spi</finalName>
+  </build>
+</project>
