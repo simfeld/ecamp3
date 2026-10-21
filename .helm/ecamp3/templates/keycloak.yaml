@@ -1,0 +1,75 @@
+{{- if .Values.keycloak.enabled -}}
+# Requires the Keycloak Operator (CRDs `Keycloak`/`KeycloakRealmImport`, apiGroup
+# k8s.keycloak.org) already installed cluster-wide -- not something this chart can
+# bootstrap itself. See dev-setup/keycloak/README.md for the equivalent local-dev setup
+# this mirrors, and the plan/discussion this was designed against for the redirect-URI
+# allowlisting dependency on the pbsmidata (MiData) side.
+#
+# NOTE: field names below are based on the Keycloak Operator's documented API as of
+# Keycloak 26 (https://www.keycloak.org/operator/basic-deployment,
+# https://www.keycloak.org/operator/realm-import), cross-checked against
+# `kubectl explain keycloak.spec` on a live Operator install.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ include "keycloak.name" . }}-admin
+  labels:
+    {{- include "keycloak.selectorLabels" . | nindent 4 }}
+    {{- include "app.commonLabels" . | nindent 4 }}
+type: Opaque
+data:
+  username: {{ "admin" | b64enc | quote }}
+  {{- include "gen.secret" (dict "namespace" .Release.Namespace "secretName" (printf "%s-admin" (include "keycloak.name" .)) "key" "password") | nindent 2 }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ include "keycloak.name" . }}-db
+  labels:
+    {{- include "keycloak.selectorLabels" . | nindent 4 }}
+    {{- include "app.commonLabels" . | nindent 4 }}
+type: Opaque
+data:
+  username: {{ .Values.keycloak.db.username | b64enc | quote }}
+  password: {{ .Values.keycloak.db.password | b64enc | quote }}
+---
+apiVersion: k8s.keycloak.org/v2beta1
+kind: Keycloak
+metadata:
+  name: {{ include "keycloak.name" . }}
+  labels:
+    {{- include "keycloak.selectorLabels" . | nindent 4 }}
+    {{- include "app.commonLabels" . | nindent 4 }}
+spec:
+  instances: 1
+  image: {{ .Values.keycloak.image.repository }}:{{ .Values.keycloak.image.tag | default .Values.imageTag }}
+  startOptimized: true
+  bootstrapAdmin:
+    user:
+      secret: {{ include "keycloak.name" . }}-admin
+  http:
+    httpEnabled: true
+  hostname:
+    hostname: {{ printf "https://%s%s" .Values.domain .Values.keycloak.subpath | quote }}
+  proxy:
+    headers: xforwarded
+  ingress:
+    # The Operator would otherwise auto-create its own Ingress for the bare hostname with no
+    # path restriction, which competes with (and wins over) the frontend/keycloak HTTPRoutes
+    # in gateway.yaml/keycloak_httproute.yaml and hijacks the whole domain to Keycloak.
+    enabled: false
+  db:
+    # Without this, the Operator never injects a KC_DB env var. The main pod (startOptimized:
+    # true) doesn't need it -- it trusts the image's baked-in `--db=postgres` as-is -- but the
+    # KeycloakRealmImport job always runs without --optimized and silently re-augments using
+    # CLI/env-derived defaults at startup, which fall back to db=dev-file without this and then
+    # fail to open the (correctly-set) postgres KC_DB_URL.
+    vendor: postgres
+    url: {{ .Values.keycloak.db.jdbcUrl | quote }}
+    usernameSecret:
+      name: {{ include "keycloak.name" . }}-db
+      key: username
+    passwordSecret:
+      name: {{ include "keycloak.name" . }}-db
+      key: password
+{{- end -}}

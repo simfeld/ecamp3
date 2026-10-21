@@ -4,6 +4,13 @@
 {{- $dbNameSuffix := .Environment.Values | getOrNil "DB_NAME_SUFFIX" | default $name -}}
 {{- $dockerUser := .Environment.Values | getOrNil "DOCKER_HUB_USERNAME" | required "DOCKER_HUB_USERNAME is required" -}}
 {{- $imageTag := .Environment.Values | getOrNil "IMAGE_TAG" | required "IMAGE_TAG is required" -}}
+{{- $postgresUrl := .Environment.Values | getOrNil "POSTGRES_URL" | required "POSTGRES_URL is required" -}}
+{{- $postgresUser := .Environment.Values | getOrNil "POSTGRES_DEPLOYMENT_USER" | default "ecamp3dev" -}}
+{{- /* POSTGRES_URL is "scheme://user:password@host:port" (no path/query) -- parsed here so the
+     Keycloak CR's `db` section (see keycloak.yaml) can connect to its own database on the same
+     Postgres server without embedding credentials directly in the CR. */ -}}
+{{- $postgresPassword := regexReplaceAll "^[a-zA-Z0-9+.-]+://[^:]+:([^@]+)@.*$" $postgresUrl "$1" -}}
+{{- $postgresHostPort := regexReplaceAll "^[a-zA-Z0-9+.-]+://[^@]+@(.*)$" $postgresUrl "$1" -}}
 
 # Default values for ecamp3.
 # Declare configuration values to be passed into the templates.
@@ -33,7 +40,7 @@ api:
     repository: "docker.io/{{ $dockerUser }}/ecamp3-api"
     pullPolicy: IfNotPresent
     # Overrides the image tag whose shared default is .Values.imageTag
-    tag:
+    tag: {{ .Environment.Values | getOrNil "API_IMAGE_TAG" | default "" | quote }}
   service:
     type: ClusterIP
     port: 3001
@@ -43,6 +50,10 @@ api:
   appEnv: prod
   appDebug: "0"
   appSecret: {{ .Environment.Values | getOrNil "API_APP_SECRET" }}
+  # Shared secret the ecamp-user-storage Keycloak SPI sends as X-Internal-Auth to
+  # /internal/user-lookup -- see keycloak_realmimport.yaml for how it's fed into that
+  # component's config. Auto-generated in api_secrets.yaml if left unset here.
+  internalApiSecret: {{ .Environment.Values | getOrNil "API_INTERNAL_API_SECRET" | default "" | quote }}
   corsAllowOrigin: "^https://.*?\\.chart-example\\.local$"
   trustedProxies:
     - "::1"
@@ -170,7 +181,7 @@ mail:
       memory: 10Mi
 
 postgresql:
-  url: "{{ .Environment.Values | getOrNil "POSTGRES_URL" | required "POSTGRES_URL is required" }}/ecamp3{{ $dbNameSuffix }}?sslmode=require"
+  url: "{{ $postgresUrl }}/ecamp3{{ $dbNameSuffix }}?sslmode=require"
   dropDBOnUninstall: {{ .Environment.Values | getOrNil "DROP_DB_ON_UNINSTALL" | default false }}
   # An uri with privileges to create and drop a database for the application.
   # Can be left empty if the required database specified in postgresql.url already exists.
@@ -179,7 +190,7 @@ postgresql:
   {{ else }}
   adminUrl:
   {{ end }}
-  user: "{{ .Environment.Values | getOrNil "POSTGRES_DEPLOYMENT_USER" | default "ecamp3dev" }}"
+  user: "{{ $postgresUser }}"
   dbName: "ecamp3{{ $dbNameSuffix }}"
   dbBackupRestoreImage:
     repository: "docker.io/{{ $dockerUser }}/ecamp3-db-backup-restore"
@@ -229,6 +240,26 @@ securityContext: {}
         # readOnlyRootFilesystem: true
         # runAsNonRoot: true
 # runAsUser: 1000
+
+# Preview-deployment-only proof of concept: Keycloak + the ecamp-user-storage SPI +
+# the real pbsmidata identity provider (cevidb/jubladb deliberately left out for now).
+# Requires the Keycloak Operator already installed cluster-wide -- see keycloak.yaml.
+keycloak:
+  enabled: {{ .Environment.Values | get "KEYCLOAK_ENABLED" false }}
+  subpath: "/keycloak"
+  image:
+    repository: "docker.io/{{ $dockerUser }}/ecamp3-keycloak"
+    # Overrides the image tag whose shared default is .Values.imageTag
+    tag: {{ .Environment.Values | getOrNil "KEYCLOAK_IMAGE_TAG" | default "" | quote }}
+  # Its own database on the same Postgres server used by the api (see postgresql.* above) --
+  # Keycloak's Operator otherwise falls back to an ephemeral, pod-local H2 database, which
+  # breaks realm import entirely (the import runs in a separate, short-lived pod that would
+  # never share that in-memory state with the long-running Keycloak instance).
+  db:
+    jdbcUrl: "jdbc:postgresql://{{ $postgresHostPort }}/ecamp3{{ $dbNameSuffix }}-keycloak?sslmode=require"
+    name: "ecamp3{{ $dbNameSuffix }}-keycloak"
+    username: "{{ $postgresUser }}"
+    password: "{{ $postgresPassword }}"
 
 gateway:
   enabled: {{ .Environment.Values | get "GATEWAY_ENABLED" true }}

@@ -1,0 +1,42 @@
+#
+# Automatically creates Keycloak's own database in the same external PostgreSQL server used
+# by the api, when installing the chart for the first time with keycloak.enabled. See
+# hook_db_create.yaml for the equivalent for the api's own database, and keycloak.yaml for
+# why Keycloak needs a real database at all (its Operator otherwise falls back to an
+# ephemeral, pod-local H2 database that breaks realm import).
+#
+{{- if and .Values.keycloak.enabled (not (.Values.postgresql.adminUrl | empty)) }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: "{{ include "keycloak.name" . }}-db-create"
+  labels:
+    {{- include "keycloak.selectorLabels" . | nindent 4 }}
+    {{- include "app.commonLabels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": pre-install
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": hook-succeeded, before-hook-creation
+spec:
+  template:
+    metadata:
+      name: "{{ include "keycloak.name" . }}-pre-install"
+      labels:
+        {{- include "keycloak.selectorLabels" . | nindent 8 }}
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: db-create-job
+          image: "{{ .Values.api.image.repository }}:{{ .Values.api.image.tag | default .Values.imageTag }}"
+          command:
+            - sh
+            - "-c"
+            - |
+              php bin/console dbal:run-sql 'CREATE DATABASE "{{ .Values.keycloak.db.name }}" OWNER "{{ .Values.keycloak.db.username }}"'
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  key: admin-database-url
+                  name: {{ include "app.name" . }}-hooks
+{{- end }}

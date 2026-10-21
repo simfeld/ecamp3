@@ -135,6 +135,19 @@ We truncate at 63 chars because some Kubernetes name fields are limited to this 
 {{- end }}
 
 {{/*
+Name for all Keycloak-related resources.
+We truncate at 63 chars because some Kubernetes name fields are limited to this (by the DNS naming spec).
+*/}}
+{{- define "keycloak.name" -}}
+{{- $name := default .Chart.Name .Values.chartNameOverride }}
+{{- if contains $name (include "app.name" .) }}
+{{- printf "%s-keycloak" (include "app.name" .) | trunc 63 | trimSuffix "-" }}
+{{- else }}
+{{- printf "%s-%s-keycloak" (include "app.name" .) $name | trunc 63 | trimSuffix "-" }}
+{{- end }}
+{{- end }}
+
+{{/*
 Create chart name and version as used by the chart label.
 */}}
 {{- define "chart.fullname" -}}
@@ -255,6 +268,14 @@ Selector labels for db-backup-job
 */}}
 {{- define "dbBackupJob.selectorLabels" -}}
 app.kubernetes.io/name: {{ include "chart.name" . }}-db-backup-job
+{{ include "app.commonSelectorLabels" . }}
+{{- end }}
+
+{{/*
+Selector labels for Keycloak
+*/}}
+{{- define "keycloak.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "chart.name" . }}-keycloak
 {{ include "app.commonSelectorLabels" . }}
 {{- end }}
 

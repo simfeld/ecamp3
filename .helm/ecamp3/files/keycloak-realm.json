@@ -1,0 +1,100 @@
+{
+  "realm": "ecamp",
+  "displayName": "eCamp",
+  "displayNameHtml": "eCamp",
+  "enabled": true,
+  "sslRequired": "external",
+  "loginTheme": "ecamp",
+  "internationalizationEnabled": true,
+  "supportedLocales": ["en", "de", "fr", "it", "rm"],
+  "defaultLocale": "en",
+  "clientScopes": [
+    {
+      "name": "ecamp-api",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "true"
+      },
+      "protocolMappers": [
+        {
+          "name": "ecamp-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.custom.audience": "ecamp-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        },
+        {
+          "name": "ecamp-api-email",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-property-mapper",
+          "config": {
+            "user.attribute": "email",
+            "claim.name": "email",
+            "jsonType.label": "String",
+            "access.token.claim": "true",
+            "id.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ],
+  "identityProviders": [
+    {
+      "alias": "pbsmidata",
+      "displayName": "PBS MiData (Hitobito)",
+      "providerId": "oidc",
+      "enabled": true,
+      "trustEmail": true,
+      "storeToken": false,
+      "config": {
+        "clientId": "${PBSMIDATA_CLIENT_ID}",
+        "clientSecret": "${PBSMIDATA_CLIENT_SECRET}",
+        "clientAuthMethod": "client_secret_post",
+        "syncMode": "IMPORT",
+        "defaultScope": "name email",
+        "useJwksUrl": "true",
+        "validateSignature": "true",
+        "authorizationUrl": "${PBSMIDATA_BASE_URL}/oauth/authorize",
+        "tokenUrl": "${PBSMIDATA_BASE_URL}/oauth/token",
+        "userInfoUrl": "${PBSMIDATA_BASE_URL}/oauth/userinfo",
+        "jwksUrl": "${PBSMIDATA_BASE_URL}/oauth/discovery/keys",
+        "issuer": "${PBSMIDATA_BASE_URL}"
+      }
+    }
+  ],
+  "clients": [
+    {
+      "clientId": "third-party-demo-app",
+      "enabled": true,
+      "publicClient": true,
+      "protocol": "openid-connect",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": ["https://{{ .Values.domain }}/*", "http://localhost:3000/demo/*"],
+      "webOrigins": ["https://{{ .Values.domain }}", "http://localhost:3000"],
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
+      },
+      "defaultClientScopes": ["ecamp-api"]
+    }
+  ],
+  "components": {
+    "org.keycloak.storage.UserStorageProvider": [
+      {
+        "name": "ecamp-user-storage",
+        "providerId": "ecamp-user-storage",
+        "config": {
+          "ecampApiBaseUrl": ["http://{{ include "api.name" . }}:{{ .Values.api.service.port }}"],
+          "internalApiSecret": ["${ECAMP_INTERNAL_API_SECRET}"],
+          "priority": ["0"]
+        }
+      }
+    ]
+  }
+}

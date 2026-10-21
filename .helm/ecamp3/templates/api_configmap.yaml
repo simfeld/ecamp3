@@ -6,7 +6,11 @@ metadata:
     {{- include "api.selectorLabels" . | nindent 4 }}
     {{- include "app.commonLabels" . | nindent 4 }}
 data:
-  ADDITIONAL_TRUSTED_HOSTS: {{ .Values.domain | quote }}
+  # Also trusts the api's own internal cluster-DNS Service name (e.g. ecamp3-simfeld-api) --
+  # not reachable from outside the cluster, so this doesn't weaken the check for real traffic --
+  # needed so in-cluster callers like the Keycloak SPI (which reaches the api via that internal
+  # name, not the public domain) don't get rejected by Symfony's trusted_hosts check.
+  ADDITIONAL_TRUSTED_HOSTS: {{ printf "%s|%s" .Values.domain (include "api.name" .) | quote }}
   {{- if and (.Values.api.authenticationTokenTtl) (ne (.Values.api.authenticationTokenTtl | toString) "<no value>") }}
   AUTHENTICATION_TOKEN_TTL: {{ .Values.api.authenticationTokenTtl | quote }}
   {{- end }}
@@ -36,4 +40,13 @@ data:
   {{- end}}
   {{- if .Values.api.num_threads }}
   NUM_THREADS: {{ .Values.api.num_threads | quote }}
+  {{- end }}
+  {{- if .Values.keycloak.enabled }}
+  # Overrides api/.env's docker-compose-only defaults (host "keycloak"), which don't resolve
+  # in-cluster -- the Operator names the Service "<keycloak-cr-name>-service" (see
+  # keycloak_httproute.yaml), not "keycloak".
+  KEYCLOAK_INTERNAL_BASE_URL: {{ printf "http://%s-service:8080%s" (include "keycloak.name" .) .Values.keycloak.subpath | quote }}
+  KEYCLOAK_EXTERNAL_BASE_URL: {{ printf "https://%s%s" .Values.domain .Values.keycloak.subpath | quote }}
+  KEYCLOAK_REALM: "ecamp"
+  KEYCLOAK_AUDIENCE: "ecamp-api"
   {{- end }}

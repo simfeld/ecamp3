@@ -83,6 +83,11 @@ spec:
                 secretKeyRef:
                   name: {{ include "api.name" . }}
                   key: hitobito-token-encryption-key
+            - name: KEYCLOAK_SPI_LOOKUP_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "api.name" . }}
+                  key: internal-api-secret
             {{- if .Values.api.oauth.google.clientId }}
             - name: OAUTH_GOOGLE_CLIENT_ID
               valueFrom:

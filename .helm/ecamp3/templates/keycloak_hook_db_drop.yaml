@@ -1,0 +1,40 @@
+#
+# Automatically drops Keycloak's own database when completely uninstalling the chart, mirroring
+# hook_db_drop.yaml for the api's own database. See keycloak_hook_db_create.yaml for why
+# Keycloak has a separate database on the same Postgres server in the first place.
+#
+{{- if and .Values.keycloak.enabled .Values.postgresql.dropDBOnUninstall (not (.Values.postgresql.adminUrl | empty)) }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: "{{ include "keycloak.name" . }}-db-drop"
+  labels:
+    {{- include "keycloak.selectorLabels" . | nindent 4 }}
+    {{- include "app.commonLabels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": post-delete
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": hook-succeeded, before-hook-creation
+spec:
+  template:
+    metadata:
+      name: "{{ include "keycloak.name" . }}-post-delete"
+      labels:
+        {{- include "keycloak.selectorLabels" . | nindent 8 }}
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: db-drop-job
+          image: "{{ .Values.api.image.repository }}:{{ .Values.api.image.tag | default .Values.imageTag }}"
+          command:
+            - sh
+            - "-c"
+            - |
+              php bin/console dbal:run-sql 'DROP DATABASE "{{ .Values.keycloak.db.name }}"'
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  key: admin-database-url
+                  name: {{ include "app.name" . }}-hooks
+{{- end }}

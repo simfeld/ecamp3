@@ -54,3 +54,16 @@ If you did not build the images for a long time, you have the convenience script
 ```shell
 ./build-and-deploy.sh
 ```
+
+## Keycloak admin console
+
+When `KEYCLOAK_ENABLED` is set for a deployment, the admin console is reachable at
+`https://<domain>/keycloak/admin/`. The `admin` user's password is generated once by the
+chart (see `ecamp3/templates/keycloak.yaml`) and kept stable across redeploys -- it's not
+printed anywhere during deploy, so fetch it from the cluster:
+
+```shell
+kubectl get secret <release-name>-keycloak-admin -n default -o jsonpath='{.data.password}' | base64 -d
+```
+
+e.g. for a deployment named `simfeld`, the release/secret is `ecamp3-simfeld-keycloak-admin`.

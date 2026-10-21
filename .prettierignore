@@ -3,6 +3,7 @@
 /.cache
 /.helm/ecamp3/env.example.yaml
 /.helm/ecamp3/templates
+/.helm/ecamp3/files/keycloak-realm.json
 /.ops/**/templates
 /.ops/aws-setup
 /.ops/ops-dashboard/env.example.yaml

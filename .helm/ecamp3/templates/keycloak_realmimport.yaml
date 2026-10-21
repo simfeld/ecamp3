@@ -1,0 +1,39 @@
+{{- if .Values.keycloak.enabled -}}
+# See keycloak.yaml for the Operator prerequisite/verification note -- the same applies
+# here. `spec.realm` is rendered from files/keycloak-realm.json: first through Helm's own
+# `tpl` (resolving `{{ .Values.domain }}`-style placeholders), then parsed as JSON so it
+# can be re-emitted as YAML for the CR. The `${PBSMIDATA_CLIENT_ID}`-style placeholders
+# left *inside* that JSON are a *different*, Operator-level substitution mechanism
+# (`spec.placeholders` below), resolved by the Operator at import time, not by Helm --
+# this is what lets the real pbsmidata client secret be injected without ever being
+# written into this chart's own files, reusing the exact same Secret api_secrets.yaml
+# already creates for the API pod's own OAUTH_PBSMIDATA_* env vars.
+apiVersion: k8s.keycloak.org/v2beta1
+kind: KeycloakRealmImport
+metadata:
+  name: {{ include "keycloak.name" . }}-ecamp
+  labels:
+    {{- include "keycloak.selectorLabels" . | nindent 4 }}
+    {{- include "app.commonLabels" . | nindent 4 }}
+spec:
+  keycloakCRName: {{ include "keycloak.name" . }}
+  realm:
+    {{- tpl (.Files.Get "files/keycloak-realm.json") . | fromJson | toYaml | nindent 4 }}
+  placeholders:
+    PBSMIDATA_CLIENT_ID:
+      secret:
+        name: {{ include "api.name" . }}
+        key: oauth-pbsmidata-client-id
+    PBSMIDATA_CLIENT_SECRET:
+      secret:
+        name: {{ include "api.name" . }}
+        key: oauth-pbsmidata-client-secret
+    PBSMIDATA_BASE_URL:
+      secret:
+        name: {{ include "api.name" . }}
+        key: oauth-pbsmidata-base-url
+    ECAMP_INTERNAL_API_SECRET:
+      secret:
+        name: {{ include "api.name" . }}
+        key: internal-api-secret
+{{- end -}}

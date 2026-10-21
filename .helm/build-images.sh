@@ -32,6 +32,10 @@ varnish_image_tag="${docker_hub_account}/ecamp3-varnish:${version}"
 docker build "$REPO_DIR" -f "$REPO_DIR"/.docker-hub/varnish/Dockerfile -t "$varnish_image_tag"
 docker push "$varnish_image_tag"
 
+keycloak_image_tag="${docker_hub_account}/ecamp3-keycloak:${version}"
+docker build "$REPO_DIR"/dev-setup/keycloak -f "$REPO_DIR"/dev-setup/keycloak/Dockerfile -t "$keycloak_image_tag"
+docker push "$keycloak_image_tag"
+
 export REPO_OWNER=${docker_hub_account}
 export VERSION=${version}
 db_backup_restore_docker_compose_path="$REPO_DIR"/.helm/ecamp3/files/db-backup-restore-image/docker-compose.yml
