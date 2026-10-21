@@ -156,6 +156,19 @@ services:
         arguments:
             $pbsmidataBaseUrl: '%env(HITOBITO_PBSMIDATA_API_BASE_URL)%'
 
+    App\Security\OAuth\KeycloakBearerAuthenticator:
+        arguments:
+            $issuer: '%app.keycloak.issuer%'
+            $audience: '%app.keycloak.audience%'
+
+    App\Service\Keycloak\JwksProvider:
+        arguments:
+            $jwksUri: '%app.keycloak.jwks_uri%'
+
+    App\Controller\InternalUserLookupController:
+        arguments:
+            $sharedSecret: '%app.keycloak.spi_lookup_secret%'
+
     App\Security\ReCaptcha\ReCaptchaWrapper:
         public: true # necessary to be able to mock ReCaptcha in the container in Api tests
         arguments:

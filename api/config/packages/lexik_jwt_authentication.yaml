@@ -17,6 +17,13 @@ lexik_jwt_authentication:
             cookies:
                 - '%env(COOKIE_PREFIX)%jwt_hp'
                 - '%env(COOKIE_PREFIX)%jwt_s'
+        # Disabled: the eCamp frontend only ever sends the cookie above, never an
+        # Authorization header. Left enabled by default, it would swallow the
+        # `Authorization: Bearer` header used by App\Security\OAuth\KeycloakBearerAuthenticator
+        # for third-party API access, and fail to verify it with eCamp's own key before that
+        # authenticator gets a chance to run.
+        authorization_header:
+            enabled: false
 
     # When logging in, set the two cookies. The header and payload cookie [api-domain]_jwt_hp is available in JavaScript,
     # while the signature [api-domain]_jwt_s is HttpOnly. This is considered safer than handing the whole token to JavaScript:

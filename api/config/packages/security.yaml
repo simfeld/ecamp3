@@ -40,11 +40,13 @@ security:
             custom_authenticators:
                 - App\Security\OAuth\GoogleAuthenticator
                 - App\Security\OAuth\HitobitoAuthenticator
+                - App\Security\OAuth\KeycloakBearerAuthenticator
 
     access_control:
         - { path: ^/docs, roles: PUBLIC_ACCESS } # Allows accessing the Swagger UI
         - { path: ^/?$, roles: PUBLIC_ACCESS } # Without /, the frontend does not know how to login
         - { path: ^/authentication_token, roles: PUBLIC_ACCESS } # Endpoint to login
+        - { path: ^/internal/user-lookup, roles: PUBLIC_ACCESS } # Keycloak SPI lookup, gated by its own shared-secret check
         - { path: ^/auth, roles: PUBLIC_ACCESS } # OAuth and resend password endpoints
         - { path: ^/content_types, roles: PUBLIC_ACCESS } # Content types is more or less static and the same for all camps
         - { path: ^/invitations/.*/(find|reject), roles: PUBLIC_ACCESS }
